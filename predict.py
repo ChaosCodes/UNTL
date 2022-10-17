@@ -1,9 +1,7 @@
 import os
-from tqdm import tqdm
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 import torch
-from torch import nn
 import numpy as np
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 from transformers import DataCollatorWithPadding

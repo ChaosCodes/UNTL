@@ -1,4 +1,3 @@
-from ast import arg
 import os
 from model import MMD_loss
 
@@ -9,7 +8,6 @@ import math
 import argparse
 from torch import nn
 from tqdm import tqdm
-import torch.nn.functional as F
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, get_linear_schedule_with_warmup
 
 import logging
