@@ -16,7 +16,7 @@ device = torch.device("cuda")
 # we can directly use the metadata (num_classes) stored in the dataset
 
 def get_model_by_source_and_target(model, source, target, seed):
-    dir = f'outputs/prefix_without_dc_{source}_{target}_seed_{seed}'
+    dir = f'outputs/prefix_{source}_{target}_seed_{seed}'
     filename = os.listdir(dir)
     assert len(filename) == 1
     filename = filename[0]

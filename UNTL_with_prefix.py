@@ -358,15 +358,15 @@ if __name__ == "__main__":
 
     # [2022, 20, 2222]
     # for seed in [20, 2222]:
-    # for source_id in [2]:
-    #     args.source_id = source_id
-    for target_id in range(5):
-        if args.source_id == target_id:
-            continue
-        args.target_id = target_id
-        for seed in [2222, 20, 2022]:
-        # for seed in [2222]:
-            args.seed = seed
-            print(args)
-            print(f'train_with_{args.source_id}_{args.target_id}')
-            train(args)
+    for source_id in range(5):
+        args.source_id = source_id
+        for target_id in range(5):
+            if args.source_id == target_id:
+                continue
+            args.target_id = target_id
+            for seed in [2222, 20, 2022]:
+            # for seed in [2222]:
+                args.seed = seed
+                print(args)
+                print(f'train_with_{args.source_id}_{args.target_id}')
+                train(args)

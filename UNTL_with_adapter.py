@@ -382,15 +382,15 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # for source_id in [args.source_id]:
-    #     args.source_id = source_id
-    for target_id in [3, 0, 4, 2, 1]:
-        if args.source_id == target_id:
-            continue
-        args.target_id = target_id
-        for seed in [2022, 20, 2222]:
-            args.seed = seed
+    for source_id in range(5):
+        args.source_id = source_id
+        for target_id in range(5):
+            if args.source_id == target_id:
+                continue
+            args.target_id = target_id
+            for seed in [2022, 20, 2222]:
+                args.seed = seed
 
-            print(args)
-            print(f'train_with_{args.source_id}_{args.target_id}')
-            train(args)
+                print(args)
+                print(f'train_with_{args.source_id}_{args.target_id}')
+                train(args)

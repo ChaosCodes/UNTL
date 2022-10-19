@@ -3,9 +3,7 @@
 ### Requirements
 
 torch==1.11.0
-
 numpy==1.22.2
-
 transformers >= 4.14.1
 
 ### Train UNTL models

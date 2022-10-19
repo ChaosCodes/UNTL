@@ -12,9 +12,8 @@ from transformers import AutoModelForSequenceClassification, AutoTokenizer, get_
 
 import logging
 
-# from ntl_dataset import load_data
-from torch.utils.data import DataLoader
 from nli_dataset import load_data, split_dataset
+from torch.utils.data import DataLoader
 from utils import save_model, TqdmLoggingHandler, setup_seed, CustomDataset
 from model import classifier
 
@@ -29,12 +28,12 @@ def train(args):
     setup_seed(args.seed)
     log.info(f'Set seed {args.seed}')
 
-    def show_loss(total_loss_per_period, total_loss_ce_per_period, total_mmd_loss_per_period, total_domain_loss_per_period):
+    def show_loss(total_loss_per_period, total_loss_ce_per_period, total_mmd_loss_per_period, total_target_ce_loss_per_period):
         log.info(f'--'*10 + 'Loss:' + '--'*10)
         log.info(f'Total loss during the period is: {np.mean(total_loss_per_period)}')
         log.info(f'Total Cross Entropy loss during the period is: {np.mean(total_loss_ce_per_period)}')
         log.info(f'Total MMD loss during the period is: {np.mean(total_mmd_loss_per_period)}')
-        log.info(f'Total Domain loss during the period is: {np.mean(total_domain_loss_per_period)}')
+        log.info(f'Total Target CE loss during the period is: {np.mean(total_target_ce_loss_per_period)}')
 
     exp_dir = os.path.join(args.output_dir, f'{args.expriment_name}_{args.source_id}_{args.target_id}_seed_{args.seed}')
 
@@ -44,9 +43,9 @@ def train(args):
     # note that we need to specify the number of classes for this task
     # we can directly use the metadata (num_classes) stored in the dataset
     model = AutoModelForSequenceClassification.from_pretrained(args.model_name, num_labels=args.num_labels)
-    domain_classifier = classifier(model.config.hidden_size)
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+
     train_dataset = load_data(tokenizer)
     train_dataset1 , train_dataset2 = train_dataset[args.source_id], train_dataset[args.target_id]
 
@@ -59,7 +58,6 @@ def train(args):
     train_datasetloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle = True)
     val_datasetloader = DataLoader(val_dataset, batch_size=args.batch_size)
 
-
     len_dataloader = len(train_datasetloader)
     num_update_steps_per_epoch = len_dataloader // args.gradient_accumulation_steps
     max_steps = math.ceil(args.epochs * num_update_steps_per_epoch)
@@ -67,15 +65,13 @@ def train(args):
 
     optimizer = torch.optim.Adam([
         {'params': model.base_model.parameters()},
-        {'params': model.classifier.parameters(), 'lr': 15e-4},
-        {'params': domain_classifier.parameters(), 'lr': 1e-3}]
+        {'params': model.classifier.parameters(), 'lr': 1e-3}]
         , lr=0.00005, betas=(0.9,0.999), eps=1e-08, weight_decay=0, amsgrad=False)
 
     scheduler = get_linear_schedule_with_warmup(optimizer, 0, max_steps)
     loss_CE = nn.CrossEntropyLoss()
 
     model.cuda()
-    domain_classifier.cuda()
 
     def evaluate(model, dataloader):
         source_logits = []
@@ -134,11 +130,10 @@ def train(args):
     for epoch in range(args.epochs):
         log.info(f'Epoch {epoch}:')
         model.train()
-        domain_classifier.train()
         total_loss_per_period = []
         total_loss_ce_per_period = []
         total_mmd_loss_per_period = []
-        total_domain_loss_per_period = []
+        total_target_ce_loss_per_period = []
 
         for idx, examples in enumerate(tqdm(train_datasetloader)):
             input_ids_1, attention_mask_1, label_1, input_ids_2, attention_mask_2, label_2 = \
@@ -167,28 +162,31 @@ def train(args):
             # hidden_state_2 = hidden_2[0][:, 0]   # (bs, seq_len, dim)
             hidden_state_2 = hidden_2[1]  # (bs, seq_len, dim)
 
-            batch_size = hidden_state_1.size(0)
-            loss_mmd = MMD_loss()(hidden_state_1.view(batch_size, -1), hidden_state_2.view(batch_size, -1)) * args.beta
+            pooled_output_2 = model.dropout(hidden_state_2)
+            target_logits = model.classifier(pooled_output_2)
 
-            # if loss_kl2 > 1:
-            #     loss_kl2 = torch.clamp(loss_kl2, 0, 1)
-            if loss_mmd > args.upperbound:
-                loss_mmd_1 = torch.clamp(loss_mmd, 0, args.upperbound)
+            loss_ce_target_coef = 0.1
+            loss_mmd_upper_coef = 0.1
+
+            loss_ce_target = loss_CE(target_logits.view(-1, args.num_labels), label_2.view(-1)) * loss_ce_target_coef
+
+            batch_size = hidden_state_1.size(0)
+            loss_mmd = MMD_loss()(hidden_state_1.view(batch_size, -1), hidden_state_2.view(batch_size, -1)) * loss_mmd_upper_coef
+
+            if loss_mmd > 1:
+                loss_mmd_1 = torch.clamp(loss_mmd, 0, 1)
             else:
                 loss_mmd_1 = loss_mmd
             
-            zeros = torch.tensor([0 for _ in range(batch_size)]).cuda()
-            ones = torch.tensor([1 for _ in range(batch_size)]).cuda()
-            l_domain_1 = loss_CE(domain_classifier(hidden_state_1).view(-1, 2), zeros)
-            l_domain_2 = loss_CE(domain_classifier(hidden_state_2).view(-1, 2), ones)
-            domain_loss = (l_domain_1 + l_domain_2) * 0.5
+            if loss_ce_target > 1:
+                loss_ce_target = torch.clamp(loss_ce_target, 0, 1)
 
-            loss = (loss_ce + domain_loss - loss_mmd_1) / args.gradient_accumulation_steps
+            loss = (loss_ce - loss_ce_target * loss_mmd_1) / args.gradient_accumulation_steps
 
             total_loss_per_period.append(loss.item())
             total_loss_ce_per_period.append(loss_ce.item())
             total_mmd_loss_per_period.append(loss_mmd_1.item())
-            total_domain_loss_per_period.append(domain_loss.item())
+            total_target_ce_loss_per_period.append(loss_ce_target.item())
 
             loss.backward()
             
@@ -198,11 +196,11 @@ def train(args):
                 scheduler.step()
             
             if idx > 0 and idx % (args.evaluate_step * args.gradient_accumulation_steps) == 0:
-                show_loss(total_loss_per_period, total_loss_ce_per_period, total_mmd_loss_per_period, total_domain_loss_per_period)
+                show_loss(total_loss_per_period, total_loss_ce_per_period, total_mmd_loss_per_period, total_target_ce_loss_per_period)
                 total_loss_per_period = []
                 total_loss_ce_per_period = []
                 total_mmd_loss_per_period = []
-                total_domain_loss_per_period = []
+                total_target_ce_loss_per_period = []
 
                 model.eval()
                 metric_score, source_accuracy, target_accuracy = evaluate(model, val_datasetloader)
@@ -212,7 +210,7 @@ def train(args):
                     log.info(f'Step: {idx} Get a Better score: {best_metric}')
                     log.info(f'Store the checkpoint')
 
-                    # only keep the top 5 pth file
+                    # only keep the top k pth file
                     check_point_file_path = os.path.join(exp_dir, f'epoch_{epoch}_{idx}.pth')
                     if len(existed_output_model_files) >= args.save_total_limit:
                         os.remove(existed_output_model_files[0])
@@ -235,7 +233,7 @@ def train(args):
             break
 
         # evalute at the end of the epoch
-        show_loss(total_loss_per_period, total_loss_ce_per_period, total_mmd_loss_per_period, total_domain_loss_per_period)
+        show_loss(total_loss_per_period, total_loss_ce_per_period, total_mmd_loss_per_period, total_target_ce_loss_per_period)
         model.eval()
         metric_score, source_accuracy, target_accuracy = evaluate(model, val_datasetloader)
         model.train()
@@ -260,7 +258,6 @@ def train(args):
                 break
             log.info(f'Step: {idx} score :{metric_score}')
         log.info(f'source_accuracy: {source_accuracy}')
-        # log.info(f'kv_losses_2: {kv_losses_2}')
         log.info(f'target_accuracy: {target_accuracy}')
 
 
@@ -270,18 +267,15 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", default='bert-base-uncased', help="model name")
     parser.add_argument("--gradient_accumulation_steps", default=2, type=int, help="number of gradient accumulation steps")
     parser.add_argument("--early_stop", type=int, default=20)
-    parser.add_argument("--source_id", type=int, default=0)
-    parser.add_argument("--target_id", type=int, default=4)
-    
-    parser.add_argument("--beta", type=float, default=0.1)
-    parser.add_argument("--alpha", type=float, default=0.1)
-
+    parser.add_argument("--source_id", type=int, default=2)
+    parser.add_argument("--target_id", type=int, default=1)
+    parser.add_argument("--lbda", type=float, default=0.1)
     parser.add_argument("--upperbound", type=float, default=1.0)
     parser.add_argument("--evaluate_step", type=int, default=40, help="frequency evaluate steps")
     parser.add_argument("--num_labels", type=int, default=3, help="classification lable num")
     parser.add_argument("--batch_size", type=int, default=128)
     parser.add_argument("--epochs", type=int, default=8)
-    parser.add_argument("--expriment_name", type=str, default="untl", help="experiment name")
+    parser.add_argument("--expriment_name", type=str, default="NTL", help="experiment name")
     parser.add_argument("--output_dir", type=str, default="outputs", help="dir to save experiment outputs")
     parser.add_argument("--save_total_limit", type=int, default=1)
 
@@ -290,13 +284,13 @@ if __name__ == "__main__":
     for source_id in range(5):
         args.source_id = source_id
         for target_id in range(5):
-            if args.source_id == target_id:
+            if target_id == source_id:
                 continue
             args.target_id = target_id
-            for seed in [2022, 20, 2222]:
+            for seed in [20, 2022, 2222]:
+            # for seed in [2222]:
                 args.seed = seed
 
                 print(args)
                 print(f'train_with_{args.source_id}_{args.target_id}')
                 train(args)
-
