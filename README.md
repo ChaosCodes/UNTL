@@ -1,5 +1,11 @@
 # Unsupervised-Non-transferable-Text-Classification
 
+This repository is for our EMNLP' 22 paper:
+
+> Unsupervised Non-transferable Text Classification [ArXiv](https://arxiv.org/abs/2210.12651)
+>
+> [Guangtao Zeng](github.com/ChaosCodes), [Wei Lu](istd.sutd.edu.sg/people/faculty/lu-wei)
+
 ## Overview
 
 We propose a novel unsupervised non-transferable learning method for the text classification task that does not require annotated target domain data. We further introduce a secret key component in our approach for recovering the access to the target domain, where we design both an explicit (prompt secret key) and an implicit method (adapter secret key) for doing so. 
