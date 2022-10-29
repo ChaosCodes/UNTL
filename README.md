@@ -1,15 +1,86 @@
 # Unsupervised-Non-transferable-Text-Classification
 
-### Requirements
+## Install dependencies
 
-torch==1.11.0
-numpy==1.22.2
-transformers >= 4.14.1
+Run the following scripts to install the dependencies.
 
-### Train UNTL models
+```shell
+pip install -r requirements.txt
+```
 
-Make sure to keep the same versions in order to reimplement the result
 
-* Train the UNTL model with UNTL.py or UNTL_with_xxx.py.
-* Predict the result with predict.py or predict_with_xxx.py
-* The datasets will be downloaded by Huggingface datasets Package.
+
+## Training
+
+Create a directory `outputs` for storing the checkpoints by:
+
+```shell
+mkdir outputs
+```
+
+Run the scripts to train the UNTL model.
+
+```shell
+python UNTL.py
+```
+
+As for the secret key based methods, run the following scripts to train the models
+
+* Train the prompt secret key based model
+
+  ```sh
+  python UNTL_with_prefix.py
+  ```
+
+* Train the adapter secret key based model
+
+  ```sh
+  python UNTL_with_adapter.py
+  ```
+
+
+
+## Evaluatoin
+
+After finishing training, run the following scripts for evaluating the model.
+
+1. Evaluate the UNTL model
+
+   ```shell
+   python predict.py
+   ```
+
+2. Evaluate the prompt secret key based model
+
+   ```sh
+   python predict_prefix.py
+   ```
+
+3. Evaluate the adapter secret key based model
+
+   ```shell
+   python predict_adapter.py
+   ```
+
+
+
+## Reference
+
+```
+@article{DBLP:journals/corr/abs-2210-12651,
+  author    = {Guangtao Zeng and
+               Wei Lu},
+  title     = {Unsupervised Non-transferable Text Classification},
+  journal   = {CoRR},
+  volume    = {abs/2210.12651},
+  year      = {2022},
+  url       = {https://doi.org/10.48550/arXiv.2210.12651},
+  doi       = {10.48550/arXiv.2210.12651},
+  eprinttype = {arXiv},
+  eprint    = {2210.12651},
+  timestamp = {Fri, 28 Oct 2022 14:21:57 +0200},
+  biburl    = {https://dblp.org/rec/journals/corr/abs-2210-12651.bib},
+  bibsource = {dblp computer science bibliography, https://dblp.org}
+}
+```
+
