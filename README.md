@@ -79,20 +79,11 @@ After finishing training, run the following scripts for evaluating the model.
 ## Reference
 
 ```
-@article{DBLP:journals/corr/abs-2210-12651,
-  author    = {Guangtao Zeng and
-               Wei Lu},
+@inproceedings{zeng2022unsupervised,
+  author    = {Guangtao Zeng and Wei Lu},
   title     = {Unsupervised Non-transferable Text Classification},
-  journal   = {CoRR},
-  volume    = {abs/2210.12651},
-  year      = {2022},
-  url       = {https://doi.org/10.48550/arXiv.2210.12651},
-  doi       = {10.48550/arXiv.2210.12651},
-  eprinttype = {arXiv},
-  eprint    = {2210.12651},
-  timestamp = {Fri, 28 Oct 2022 14:21:57 +0200},
-  biburl    = {https://dblp.org/rec/journals/corr/abs-2210-12651.bib},
-  bibsource = {dblp computer science bibliography, https://dblp.org}
+  booktitle = {Proceedings of EMNLP},
+  year      = {2022}
 }
 ```
 
